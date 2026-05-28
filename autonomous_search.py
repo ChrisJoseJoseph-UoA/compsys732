@@ -18,9 +18,9 @@ source ~/ros2_ws/install/setup.bash
 
 
 NAMESPACE = '/T26' # ← change to your robot namespace
-FORWARD_SPEED = 0.1 # m/s
-TURN_SPEED = 0.2 # rad/s
-DRIVE_TURN_SPEED = 0.35
+FORWARD_SPEED = 0.15 # m/s
+TURN_SPEED = 0.3 # rad/s
+DRIVE_TURN_SPEED = 0.3
 AVOID_DISTANCE = 0.4 # metres
 SIDE_AVOID_DIST = 0.15
 FRONT_ARC_DEG = 45 # degrees either side of forward
@@ -72,8 +72,6 @@ class AutonomousSearch(Node):
         self.elapsed = 0.0
         self.phase = 0
         self.phase_reading_count = 0
-        self.checkpoint_x = 0.0
-        self.checkpoint_y = 0.0
         self.heading_turn = False
         self.state = "SEARCH"
         self.returnTurn = False
@@ -155,7 +153,8 @@ class AutonomousSearch(Node):
             self.get_logger().info(f"Cube detected. Saved to {img_filename}")
             return True
         else:
-            
+
+            self.get_logger().info("Can't take photo")
             return False
 
 #====================================================#
@@ -231,7 +230,8 @@ class AutonomousSearch(Node):
     def returnToOrigin(self, msg):
 
         if self.euclidean_distance_xy(0.0, 0.0, self.current_x, self.current_y) > 0.1:
-
+            self.get_logger().info("Returning to origin")
+            
             if self.nearest_front > AVOID_DISTANCE:
                 msg.linear.x = FORWARD_SPEED
                 msg.angular.z = 0.0
