@@ -202,6 +202,7 @@ class AutonomousSearch(Node):
         
             if not(self.nearest_left < SIDE_AVOID_DIST and self.nearest_right < SIDE_AVOID_DIST):
                     msg.angular.z = DRIVE_TURN_SPEED if self.nearest_left > self.nearest_right else -DRIVE_TURN_SPEED
+                
         else:
             self.get_logger().info(f"Obstacle in front: {self.nearest_front}")
             msg.linear.x = 0.0
@@ -308,7 +309,7 @@ class AutonomousSearch(Node):
         if abs(heading_err) > MAX_HEADING_ERR:
         # Rotate to face origin
             #msg.linear.x = 0.0
-            msg.angular.z = TURN_SPEED if heading_err > 0 else -TURN_SPEED
+            msg.angular.z = DRIVE_TURN_SPEED if heading_err > 0 else -DRIVE_TURN_SPEED
             self.get_logger().info(f"Origin heading error too high, adjusting: {heading_err}")
 
         # else:
@@ -323,14 +324,14 @@ class AutonomousSearch(Node):
         dy = 0.0 - self.current_y
 
         target_angle = math.atan2(dy, dx)
-        heading_err = self.angleDiff(target_angle, (self.current_yaw + math.pi))
+        heading_err = self.angleDiff((target_angle + math.pi), self.current_yaw)
         #heading_err = math.pi - heading_err
         #heading_err = self._angle_diff(target_angle, self.current_yaw)
 
         if abs(heading_err) > MAX_HEADING_ERR:
         # Rotate to face origin
             #msg.linear.x = 0.0
-            msg.angular.z = TURN_SPEED if heading_err > 0 else -TURN_SPEED
+            msg.angular.z = DRIVE_TURN_SPEED if heading_err > 0 else -DRIVE_TURN_SPEED
             self.get_logger().info(f"Heading away error too high, adjusting: {heading_err}")
         # else:
         # # Drive toward origin
