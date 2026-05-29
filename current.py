@@ -33,6 +33,7 @@ WAIT_TIME = 2.0
 CUBE_MIN_DETECTION_TIME = 0.25
 DEBUG_MODE = True
 CHECKPOINT_FREQUENCY = 100
+IMAGE_FILENAME = "detection_snapshot.jpg"
 
 RED_LOW1 = np.array([0, 120, 70])
 RED_HIGH1 = np.array([10, 255, 255])
@@ -89,6 +90,7 @@ class ObstacleAvoidance(Node):
         self.detection_x = None
         self.detection_y = Noneself.run_start_time = None
         self.run_end_time = None
+        self.total_run_time = None
         
 
     def getYaw(self, x, y, z, w):
@@ -167,8 +169,7 @@ class ObstacleAvoidance(Node):
     def take_photo(self, msg):
         if msg.linear.x == 0.0 and msg.angular.z == 0.0 and self.cube_detected and not self.photoTaken:
             img = self.bridge.compressed_imgmsg_to_cv2(self.cameraMsg, 'bgr8')
-            img_filename = "cube_detected.png"
-            cv2.imwrite(img_filename, img)
+            cv2.imwrite(IMAGE_FILENAME, img)
             self.get_logger().info(f"[Logging] | Cube detected. Saved to {img_filename}")
             return True
         else:
@@ -220,13 +221,31 @@ class ObstacleAvoidance(Node):
             self.get_logger().warn(f"[Debug] | >> Target Angle: {target_angle}")
 
         return heading_err
+        
     def print_run_report(self):
-        report = """
+        report = f"""
         [Report] | -------------------------    RUN REPORT    -------------------------
         [Report] | 
-        [Report] | Total Run Time: 
-        
+        [Report] | Total Run Time: {self.total_run_time}
+        [Report] | 
+        [Report] | Tasks Completed:
+        [Report] | ---[\u2713] Searching
+        [Report] | ---[\u2713] Reporting
+        [Report] | ---[\u2713] Returning
+        [Report] | ---[\u2713] Done
+        [Report] | 
+        [Report] | Cube Detection Details:
+        [Report] | ---Detected at ({self.detection_x}, {self.detection_y})
+        [Report] | ---Cube Image Save Status: {"True" if self.photoTaken else "False"}
+        [Report] | ---Cube Image Saved As: {FILENAME if self.photoTaken else "N/A"}
+        [Report] | 
+        [Report] | Stop Position (Odometry): ({self.current_x}, {self.current_y})
+        [Report] | Dock Status: {"True" if self.is_docked else "False"}
+        [Report] | 
+        [Report] | --------------------------------------------------------------------
         """
+        self.get_logger().info(report)
+        return True
         
 
     def control_loop(self):
@@ -354,10 +373,12 @@ class ObstacleAvoidance(Node):
                 self.phase = 4
                 self.phase_reading_count = 0
                 self.get_logger().warn(f"[PhaseChange] | ------------------------Phase {self.phase}------------------------")
+                self.run_end_time = self.get_clock().now()
+
+                self.total_run_time = (self.run_end_time - self.run_start_time).nanoseconds / 1e9
         else:
             if not self.print_report:
-                self.print_run_report()
-                self.print_report = True
+                self.print_report =  self.print_run_report()
 
         if self.phase != 4:
             if msg.angular.z == 0:
