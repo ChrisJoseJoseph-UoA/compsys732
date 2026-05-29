@@ -6,6 +6,7 @@ from sensor_msgs.msg import LaserScan
 from nav_msgs.msg import Odometry
 from cv_bridge import CvBridge
 from sensor_msgs.msg import CompressedImage
+from irobot_create_msgs.msg import DockStatus
 
 """
 cb 
@@ -59,7 +60,7 @@ class ObstacleAvoidance(Node):
                 self.odom_callback,
                 10
             )
-        #self.create_subscription(DockStatus, f"{NAMESPACE}/dock_status", self.dock_status, 10)
+        self.create_subscription(DockStatus, f"{NAMESPACE}/dock_status", self.dock_status, 10)
         
         self.last_turn = 'FORWARD'
         self.same_direction_counter = 0
@@ -162,10 +163,17 @@ class ObstacleAvoidance(Node):
         self.nearest_left = arc_min(front_i, front_i + side_a)
         self.nearest_right = arc_min(front_i - side_a, front_i)
 
-    """
-        def dock_status(self, msg):
-            return msg.is_docked, msg.dock_visible
-    """
+
+    def dock_status(self, msg):
+        return msg.is_docked, msg.dock_visible
+
+    def is_dock(self):
+        is_dock, _ = self.dock_status()
+        return is_dock
+
+    def is_dock_visible(self):
+        _, dock_visibility = self.dock_status()
+        return dock_visibility
 
     def take_photo(self, msg):
         if msg.linear.x == 0.0 and msg.angular.z == 0.0 and self.cube_detected and not self.photoTaken:
@@ -329,14 +337,18 @@ class ObstacleAvoidance(Node):
 
             if self.waitElapsed <= WAIT_TIME and not self.turn_status:
                 self.detection_x, self.detection_y = self.current_x, self.current_y
-
+            
             if self.waitElapsed > WAIT_TIME or self.turn_status:
-
+                
+                #    Check if photo has been taken
                 if self.take_photo(msg):
-                    # change state
+                    
+                    #    If photo has been taken stop rotation scanning
                     self.photoTaken = True  
                     self.turn_status = False        
                 else:
+                    
+                    #    If can't find cube, rotate and scan.
                     self.get_logger().warn(f"[Logging] | Can't take photo")
                     msg.linear.x = 0.0
                     msg.angular.z = -TURN_SPEED / 5 if  not self.cube_detected else 0.0
@@ -344,9 +356,12 @@ class ObstacleAvoidance(Node):
                     self.waitElapsed = 0.0
 
             if self.photoTaken:
+
+                #    Turn once photo is taken.
                 msg, self.turn_status = self.turn_rads(math.pi)
                 self.log_msg = "[Heading away from cube]"
 
+                #    Change Phase after turning around.
                 if self.turn_status:
                     self.phase = 3
                     self.turn_status = False
@@ -356,14 +371,18 @@ class ObstacleAvoidance(Node):
         
         elif self.phase == 3:
             self.phase_reading_count += 1
+            
             if self.phase_reading_count == 1:
                 self.checkpoint_x = self.current_x
                 self.checkpoint_y = self.current_y
+                
             if self.phase_reading_count % (CHECKPOINT_FREQUENCY * 2) == 0:
                 self.heading_turn = self.check_heading(self.checkpoint_x, self.checkpoint_y, self.current_x, self.current_y, True)
+                
                 if not self.heading_turn:
                     self.checkpoint_x = self.current_x
                     self.checkpoint_y = self.current_y
+                    
             if self.heading_turn:
                 heading_angle = self.heading_angle_dock(msg)
                 msg, self.turn_status = self.turn_rads(heading_angle)
@@ -374,19 +393,25 @@ class ObstacleAvoidance(Node):
                     self.log_msg = "[Heading Corrected]"
                     self.heading_turn = False
                     self.turn_status = False
+                    
+            #    Navigate if not turning to correct heading.
             if not self.heading_turn:
                 navigate()
+                
+            #    Dock or stop when near start position    
             if self.euclidean_distance_xy(x1=self.current_x, y1=self.current_y) < (DOCK_DISTANCE * 2):
-                #is_docked, dock_visible = self.dock_status()
-                #if dock_visible:
-                os.system(f"ros2 action send_goal {NAMESPACE}/dock irobot_create_msgs/action/Dock {{}}")
-                #if is_docked or self.euclidean_distance_xy(x1=self.current_x, y1=self.current_y) < DOCK_DISTANCE:
-                self.phase = 4
-                self.phase_reading_count = 0
-                self.get_logger().warn(f"[PhaseChange] | ------------------------Phase {self.phase}------------------------")
-                self.run_end_time = self.get_clock().now()
+                
+                if self.is_dock_visible():
+                    os.system(f"ros2 action send_goal {NAMESPACE}/dock irobot_create_msgs/action/Dock {{}}")
+                    
+                if self.is_docked() or (self.euclidean_distance_xy(x1=self.current_x, y1=self.current_y) < DOCK_DISTANCE):
+                    self.phase = 4
+                    self.phase_reading_count = 0
+                    self.get_logger().warn(f"[PhaseChange] | ------------------------Phase {self.phase}------------------------")
 
-                self.total_run_time = (self.run_end_time - self.run_start_time).nanoseconds / 1e9
+                    #    Calculating run time
+                    self.run_end_time = self.get_clock().now()
+                    self.total_run_time = (self.run_end_time - self.run_start_time).nanoseconds / 1e9
         else:
             if not self.print_report:
                 self.print_report =  self.print_run_report()
