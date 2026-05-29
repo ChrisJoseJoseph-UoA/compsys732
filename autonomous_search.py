@@ -8,26 +8,26 @@ from cv_bridge import CvBridge
 from sensor_msgs.msg import CompressedImage
 
 """
-ros2 service call /T26/reset_pose irobot_create_msgs/srv/ResetPose {}
+ros2 service call /T8/reset_pose irobot_create_msgs/srv/ResetPose {}
 
 source ~/ros2_venv/bin/activate
 source ~/ros2_ws/install/setup.bash
-~/ros2_venv/bin/python3 -m tb4_sensor_reader.obstacle_avoidance
+~/ros2_venv/bin/python3 -m tb4_sensor_reader.autonomous_search
 
 """
 
 
-NAMESPACE = '/T26' # ← change to your robot namespace
+NAMESPACE = '/T8' # ← change to your robot namespace
 FORWARD_SPEED = 0.15 # m/s
 TURN_SPEED = 0.3 # rad/s
 DRIVE_TURN_SPEED = 0.3
-AVOID_DISTANCE = 0.4 # metres
+AVOID_DISTANCE = 0.6 # metres
 SIDE_AVOID_DIST = 0.15
 FRONT_ARC_DEG = 45 # degrees either side of forward
 TURN_180_TIME = math.pi / TURN_SPEED
 DOCK_DISTANCE = 0.3
 WAIT_TIME = 2.0
-CUBE_MIN_DETECTION_TIME = 0.5
+CUBE_MIN_DETECTION_TIME = 0.3
 DEBUG_MODE = True
 
 RED_LOW1 = np.array([0, 120, 70])
@@ -87,7 +87,7 @@ class AutonomousSearch(Node):
     def odom_callback(self, msg):
         self.current_x = msg.pose.pose.position.x
         self.current_y = msg.pose.pose.position.y
-        self.current_yaw = self.getYaw(msg.pose.pose.orientation.x, msg.pose.pose.orientation.y, msg.pose.pose.orinetation.z, msg.pose.pose.orientation.w)
+        self.current_yaw = self.getYaw(msg.pose.pose.orientation.x, msg.pose.pose.orientation.y, msg.pose.pose.orientation.z, msg.pose.pose.orientation.w)
 
   #=================================================================================  
     def image_callback(self, msg):
@@ -106,7 +106,7 @@ class AutonomousSearch(Node):
             cv2.putText(overlay, 'DETECTED', (10, 70), cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 0, 255), 3)
             self.get_logger().info(f'Red cube detected — {pixels} pixels')
 
-            if self.cubeDetectTime > CUBE_MIN_DETECTION_TIME:
+            if self.cubeDetectTime >= CUBE_MIN_DETECTION_TIME:
                 self.cube_detected = True
             
         else:
@@ -190,16 +190,18 @@ class AutonomousSearch(Node):
         
         self.publisher.publish(msg)
         self.get_logger().info(f"State: {self.state}")
-        self.get_logger().info(msg)
+        self.get_logger().info(f"Cube detected: {self.cube_detected}")
+        #self.get_logger().info(msg)
 
     def avoid(self, msg):
 
-        if self.nearest_front > AVOID_DISTANCE / 2:
+        if self.nearest_front > (AVOID_DISTANCE / 2):
             msg.linear.x = FORWARD_SPEED
         
             if not(self.nearest_left < SIDE_AVOID_DIST and self.nearest_right < SIDE_AVOID_DIST):
                     msg.angular.z = DRIVE_TURN_SPEED if self.nearest_left > self.nearest_right else -DRIVE_TURN_SPEED
         else:
+            self.get_logger().info(f"Obstacle in front: {self.nearest_front}")
             msg.linear.x = 0.0
 
             if self.nearest_left >= self.nearest_right:
@@ -278,8 +280,11 @@ class AutonomousSearch(Node):
             msg.linear.x = FORWARD_SPEED
             msg.angular.z = 0.0
             self.last_turn = 'FORWARD'
+            self.get_logger().info(f"No obstacle: {self.nearest_front}")
+            msg = self.getAwayHeading(msg)
 
         else:
+            self.get_logger().info(f"Approaching obstacle: {self.nearest_front}")
             msg = self.avoid(msg)
 
         return msg
@@ -295,6 +300,26 @@ class AutonomousSearch(Node):
 
         target_angle = math.atan2(dy, dx)
         heading_err = self.angleDiff(target_angle, self.current_yaw)
+        #heading_err = self._angle_diff(target_angle, self.current_yaw)
+
+        if abs(heading_err) > 0.12:
+        # Rotate to face origin
+            #msg.linear.x = 0.0
+            msg.angular.z = TURN_SPEED if heading_err > 0 else -TURN_SPEED
+        # else:
+        # # Drive toward origin
+        #     msg.linear.x = FORWARD_SPEED
+        #     msg.angular.z = 0.0
+        
+        return msg
+
+    def getAwayHeading(self, msg):
+        dx = 0.0 - self.current_x
+        dy = 0.0 - self.current_y
+
+        target_angle = math.atan2(dy, dx)
+        heading_err = self.angleDiff(target_angle, self.current_yaw)
+        heading_err = math.pi - heading_err
         #heading_err = self._angle_diff(target_angle, self.current_yaw)
 
         if abs(heading_err) > 0.12:
