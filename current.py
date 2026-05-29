@@ -13,16 +13,16 @@ cb
 unset-turtlebot
 source ~/ros2_venv/bin/activate
 source ~/ros2_ws/install/setup.bash
-set-turtlebot 8
-ros2 service call /T8/reset_pose irobot_create_msgs/srv/ResetPose {}
+set-turtlebot 3
+ros2 service call /T3/reset_pose irobot_create_msgs/srv/ResetPose {}
 ~/ros2_venv/bin/python3 -m tb4_sensor_reader.obstacle_avoidance
 
 """
 
 
-NAMESPACE = '/T8' # ← change to your robot namespace
-FORWARD_SPEED = 0.1 # m/s
-TURN_SPEED = 0.15 # rad/s
+NAMESPACE = '/T3' # ← change to your robot namespace
+FORWARD_SPEED = 0.2 # m/s
+TURN_SPEED = 0.2 # rad/s
 DRIVE_TURN_SPEED = 0.25
 AVOID_DISTANCE = 0.35 # metres
 SIDE_AVOID_DIST = 0.15
@@ -32,7 +32,7 @@ DOCK_DISTANCE = 0.25
 WAIT_TIME = 2.0
 CUBE_MIN_DETECTION_TIME = 0.25
 DEBUG_MODE = True
-CHECKPOINT_FREQUENCY = 25
+CHECKPOINT_FREQUENCY = 100
 
 RED_LOW1 = np.array([0, 120, 70])
 RED_HIGH1 = np.array([10, 255, 255])
@@ -272,40 +272,14 @@ class ObstacleAvoidance(Node):
             self.checkpoint_yaw = self.current_yaw
             if DEBUG_MODE:
                 self.get_logger().warn(f'[Debug] | Orientation: {self.current_yaw}')
+
             self.get_logger().warn(f"[Logging] | Checkpoint Set: ({self.checkpoint_x},{self.checkpoint_y}. Orientation(rads): {self.checkpoint_yaw})")
             self.phase = 1
             self.get_logger().warn(f"[PhaseChange] | ------------------------Phase {self.phase}------------------------")
 
         if self.phase == 1:
             self.phase_reading_count += 1
-
-            # if DEBUG_MODE:
-            #     self.get_logger().warn(f'[Debug] | Orientation: {math.degrees(self.current_yaw) if self.current_yaw else None}')
- 
-            if self.phase_reading_count % CHECKPOINT_FREQUENCY == 0:
-                if DEBUG_MODE:
-                    self.get_logger().info(f"[Debug] | Checking Heading: chk: ({self.checkpoint_x}, {self.checkpoint_y}) | curr: ({self.current_x}, {self.current_y})")
-                self.heading_turn = self.check_heading(self.checkpoint_x, self.checkpoint_y, self.current_x, self.current_y, False)
-                if not self.heading_turn:
-                    if DEBUG_MODE:
-                        self.get_logger().info(f"[Debug] | --->> chk: ({self.checkpoint_x}, {self.checkpoint_y}) | curr: ({self.current_x}, {self.current_y}) | heading_turn: {self.heading_turn}")
-                    self.checkpoint_x = self.current_x
-                    self.checkpoint_y = self.current_y
-                    self.checkpoint_yaw = self.current_yaw
-
-                    self.get_logger().warn(f"[Logging] | New Checkpoint Set: ({self.checkpoint_x},{self.checkpoint_y})")
-            if DEBUG_MODE:
-                self.get_logger().warn(f"Turning: {self.heading_turn}")
-            if self.heading_turn:
-                self.get_logger().warn("[Logging] | [HeadingCheck] | Turning heading")
-                self.turn_status = self.turn_rads(self.angle_diff(self.current_yaw + math.pi, self.checkpoint_yaw))
-
-                if self.turn_status:
-                    self.log_msg = "[Heading Corrected]"
-                    self.heading_turn = False
-                    self.turn_status = False
-            if not self.heading_turn:
-                navigate()
+            navigate()
             if self.cube_detected:
                 self.phase = 2
                 self.phase_reading_count = 0
