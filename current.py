@@ -8,18 +8,21 @@ from cv_bridge import CvBridge
 from sensor_msgs.msg import CompressedImage
 
 """
-ros2 service call /T7/reset_pose irobot_create_msgs/srv/ResetPose {}
+cb 
 
+unset-turtlebot
 source ~/ros2_venv/bin/activate
 source ~/ros2_ws/install/setup.bash
+set-turtlebot 3
+ros2 service call /T3/reset_pose irobot_create_msgs/srv/ResetPose {}
 ~/ros2_venv/bin/python3 -m tb4_sensor_reader.obstacle_avoidance
 
 """
 
 
-NAMESPACE = '/T7' # ← change to your robot namespace
-FORWARD_SPEED = 0.1 # m/s
-TURN_SPEED = 0.15 # rad/s
+NAMESPACE = '/T3' # ← change to your robot namespace
+FORWARD_SPEED = 0.2 # m/s
+TURN_SPEED = 0.2 # rad/s
 DRIVE_TURN_SPEED = 0.25
 AVOID_DISTANCE = 0.35 # metres
 SIDE_AVOID_DIST = 0.15
@@ -27,8 +30,9 @@ FRONT_ARC_DEG = 45 # degrees either side of forward
 TURN_180_TIME = math.pi / TURN_SPEED
 DOCK_DISTANCE = 0.25
 WAIT_TIME = 2.0
-CUBE_MIN_DETECTION_TIME = 1.0
+CUBE_MIN_DETECTION_TIME = 0.25
 DEBUG_MODE = True
+CHECKPOINT_FREQUENCY = 100
 
 RED_LOW1 = np.array([0, 120, 70])
 RED_HIGH1 = np.array([10, 255, 255])
@@ -75,12 +79,17 @@ class ObstacleAvoidance(Node):
         self.phase_reading_count = 0
         self.checkpoint_x = 0.0
         self.checkpoint_y = 0.0
+        self.checkpoint_yaw = None
         self.heading_turn = False
         self.turn_elapsed = 0.0
         self.turn_time = None
         self.turn_status = False
         self.current_yaw = None
         self.log_msg = None
+        self.detection_x = None
+        self.detection_y = None
+        self.heading_target_angle = None
+        
 
     def getYaw(self, x, y, z, w):
         """Calculates yaw in radians and degrees from a quaternion."""
@@ -116,7 +125,7 @@ class ObstacleAvoidance(Node):
             cv2.putText(overlay, '[ CubeDetection ] | DETECTED', (10, 70), cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 0, 255), 3)
             self.get_logger().info(f'[ CubeDetection ] | Red cube detected — {pixels} pixels')
 
-            if self.cubeDetectTime > CUBE_MIN_DETECTION_TIME:
+            if self.cubeDetectTime >= CUBE_MIN_DETECTION_TIME:
                 self.cube_detected = True
             
         else:
@@ -152,7 +161,7 @@ class ObstacleAvoidance(Node):
 
     """
         def dock_status(self, msg):
-            return msg.is_docked, msg.dokc_visible
+            return msg.is_docked, msg.dock_visible
     """
 
     def take_photo(self, msg):
@@ -163,7 +172,6 @@ class ObstacleAvoidance(Node):
             self.get_logger().info(f"[Logging] | Cube detected. Saved to {img_filename}")
             return True
         else:
-            
             return False
 
     def turn_rads(self, angle):
@@ -172,7 +180,8 @@ class ObstacleAvoidance(Node):
         
         if not self.turn_time:
             self.turn_time = abs(angle) / TURN_SPEED
-        
+        if DEBUG_MODE:
+            self.get_logger().warn(f"[Debug] | Turning | Elapsed Time: {self.turn_elapsed}, Turn Time: {self.turn_time}")
         if self.turn_elapsed <= self.turn_time:
             msg.linear.x = 0.0
             msg.angular.z = (angle / abs(angle)) * TURN_SPEED
@@ -181,6 +190,7 @@ class ObstacleAvoidance(Node):
             self.turn_time = None
             msg.linear.x = 0.0
             msg.angular.z= 0.0
+            self.turn_elapsed = 0.0
             return msg, True
         
     
@@ -215,6 +225,8 @@ class ObstacleAvoidance(Node):
         msg = Twist()
 
         def navigate():
+
+            self.get_logger().warn("-----------in Navigation ():")
             
             if self.nearest_front > AVOID_DISTANCE:
                 msg.linear.x = FORWARD_SPEED
@@ -258,38 +270,16 @@ class ObstacleAvoidance(Node):
         if self.phase == 0:
             self.checkpoint_x = self.current_x
             self.checkpoint_y = self.current_y
+            self.checkpoint_yaw = self.current_yaw
             if DEBUG_MODE:
                 self.get_logger().warn(f'[Debug] | Orientation: {self.current_yaw}')
-            self.get_logger().warn(f"[Logging] | Checkpoint Set: ({self.checkpoint_x},{self.checkpoint_y})")
+
+            self.get_logger().warn(f"[Logging] | Checkpoint Set: ({self.checkpoint_x},{self.checkpoint_y}. Orientation(rads): {self.checkpoint_yaw})")
             self.phase = 1
             self.get_logger().warn(f"[PhaseChange] | ------------------------Phase {self.phase}------------------------")
 
         if self.phase == 1:
             self.phase_reading_count += 1
-
-            if DEBUG_MODE:
-                self.get_logger().warn(f'[Debug] | Orientation: {math.degrees(self.current_yaw) if self.current_yaw else None}')
- 
-            if self.phase_reading_count % 50 == 0:
-                if DEBUG_MODE:
-                    self.get_logger().info(f"[Debug] | Checking Heading: chk: ({self.checkpoint_x}, {self.checkpoint_y}) | curr: ({self.current_x}, {self.current_y})")
-                self.heading_turn = self.check_heading(self.checkpoint_x, self.checkpoint_y, self.current_x, self.current_y, False)
-                if not self.heading_turn:
-                    if DEBUG_MODE:
-                        self.get_logger().info(f"[Debug] | --->> chk: ({self.checkpoint_x}, {self.checkpoint_y}) | curr: ({self.current_x}, {self.current_y}) | heading_turn: {self.heading_turn}")
-                    self.checkpoint_x = self.current_x
-                    self.checkpoint_y = self.current_y
-                    self.get_logger().warn(f"[Logging] | New Checkpoint Set: ({self.checkpoint_x},{self.checkpoint_y})")
-
-            if self.heading_turn:
-                self.get_logger().warn("[Logging] | [HeadingCheck] | Turning heading")
-                self.turn_status = self.turn_rads(math.pi)
-
-                if self.turn_status:
-                    self.log_msg = "[Heading Corrected]"
-                    self.heading_turn = False
-                    self.turn_status = False
-
             navigate()
             if self.cube_detected:
                 self.phase = 2
@@ -299,6 +289,9 @@ class ObstacleAvoidance(Node):
             msg.linear.x = 0.0
             msg.angular.z = 0.0
             self.waitElapsed += 0.1
+
+            if self.waitElapsed <= WAIT_TIME and not self.turn_status:
+                self.detection_x, self.detection_y = self.current_x, self.current_y
 
             if self.waitElapsed > WAIT_TIME or self.turn_status:
 
@@ -327,23 +320,23 @@ class ObstacleAvoidance(Node):
             if self.phase_reading_count == 1:
                 self.checkpoint_x = self.current_x
                 self.checkpoint_y = self.current_y
-            if self.phase_reading_count % 100 == 0:
+            if self.phase_reading_count % (CHECKPOINT_FREQUENCY * 2) == 0:
                 self.heading_turn = self.check_heading(self.checkpoint_x, self.checkpoint_y, self.current_x, self.current_y, True)
                 if not self.heading_turn:
                     self.checkpoint_x = self.current_x
                     self.checkpoint_y = self.current_y
             if self.heading_turn:
-
                 heading_angle = self.heading_angle_dock(msg)
-                self.turn_status = self.turn_rads(heading_angle)
-
-                
+                msg, self.turn_status = self.turn_rads(heading_angle)
+                self.log_msg = "[Correcting heading]"
                 self.get_logger().warn("[Logging] | [HeadingCheck] | Turning heading, back to origin")
+
                 if self.turn_status:
                     self.log_msg = "[Heading Corrected]"
                     self.heading_turn = False
                     self.turn_status = False
-            navigate()
+            if not self.heading_turn:
+                navigate()
             if self.euclidean_distance_xy(x1=self.current_x, y1=self.current_y) < (DOCK_DISTANCE * 2):
                 #is_docked, dock_visible = self.dock_status()
                 #if dock_visible:
