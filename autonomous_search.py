@@ -8,7 +8,7 @@ from cv_bridge import CvBridge
 from sensor_msgs.msg import CompressedImage
 
 """
-ros2 service call /T8/reset_pose irobot_create_msgs/srv/ResetPose {}
+ros2 service call /T22/reset_pose irobot_create_msgs/srv/ResetPose {}
 
 source ~/ros2_venv/bin/activate
 source ~/ros2_ws/install/setup.bash
@@ -17,7 +17,7 @@ source ~/ros2_ws/install/setup.bash
 """
 
 
-NAMESPACE = '/T8' # ← change to your robot namespace
+NAMESPACE = '/T22' # ← change to your robot namespace
 FORWARD_SPEED = 0.15 # m/s
 TURN_SPEED = 0.35 # rad/s
 DRIVE_TURN_SPEED = 0.3
