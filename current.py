@@ -185,6 +185,14 @@ class ObstacleAvoidance(Node):
             return False
 
     def turn_rads(self, angle):
+        """
+        Turn x rads at TURN_SPEED rads/s.
+        Arguement:
+            |- (Required) angle: how many angles to turn.
+        Returns:
+            |- msg: Twist message to publish in /cmd_vel
+            |- True / False: True if Turn sequence completed
+        """
         self.turn_elapsed += 0.1
         msg = Twist()
         
@@ -205,6 +213,20 @@ class ObstacleAvoidance(Node):
         
     
     def check_heading(self, x0 = 0.0, y0 = 0.0, x1 = 0.0, y1 = 0.0, towards_dock = False):
+        """
+        Checks if you are headed to your destination.
+        Arguement:
+            |- (Optional) x0: how many angles to turn.    | Default: 0.0
+            |- (Optional) y0: how many angles to turn.    | Default: 0.0
+            |- (Optional) x1: how many angles to turn.    | Default: 0.0
+            |- (Optional) y1: how many angles to turn.    | Default: 0.0
+            |- (Optional) toward_dock:                    | Default: False
+            |                |-- True if heading towards dock, 
+            |                |-- False if heading away from dock
+        Returns:
+            |- True / False: True if headed in intended direction.
+        """
+        
         dist_dock_A = self.euclidean_distance_xy(x0,y0,0,0)
         dist_dock_B = self.euclidean_distance_xy(x1,y1,0,0)
         if towards_dock:
@@ -220,10 +242,25 @@ class ObstacleAvoidance(Node):
                 return False
     
     def angle_diff(self, angle1, angle2):
+        """
+        Returns angle1 - angle2.
+        Arguement:
+            |- (Required) angle1
+            |- (Required) angle2
+        Returns:
+            |- angle difference between angle 1 and angle 2 (in [-pi, pi] range)
+        """
         diff = angle1 - angle2
         return math.atan2(math.sin(diff), math.cos(diff))
 
-    def heading_angle_dock(self, msg):
+    def heading_angle_dock(self):
+        """
+        Returns heading angle (Robot -> InitialPosition).
+        Arguement:
+            |- None
+        Returns:
+            |- Heading angle (rads) towards initial position (0.0, 0.0) (in [-pi, pi] range)
+        """
         target_angle = math.atan2(self.current_y, self.current_x)
         heading_err = self.angle_diff(target_angle, self.current_yaw)
         if DEBUG_MODE:
