@@ -8,7 +8,7 @@ from cv_bridge import CvBridge
 from sensor_msgs.msg import CompressedImage
 
 """
-ros2 service call /T22/reset_pose irobot_create_msgs/srv/ResetPose {}
+ros2 service call /T3/reset_pose irobot_create_msgs/srv/ResetPose {}
 
 source ~/ros2_venv/bin/activate
 source ~/ros2_ws/install/setup.bash
@@ -17,19 +17,20 @@ source ~/ros2_ws/install/setup.bash
 """
 
 
-NAMESPACE = '/T22' # ← change to your robot namespace
-FORWARD_SPEED = 0.15 # m/s
-TURN_SPEED = 0.35 # rad/s
-DRIVE_TURN_SPEED = 0.3
-AVOID_DISTANCE = 0.6 # metres
-SIDE_AVOID_DIST = 0.15
+NAMESPACE = '/T3' # ← change to your robot namespace
+FORWARD_SPEED = 0.12 # m/s
+TURN_SPEED = 0.3 # rad/s
+DRIVE_TURN_SPEED = 0.4
+AVOID_DISTANCE = 0.63 # metres
+SIDE_AVOID_DIST = 0.17
 FRONT_ARC_DEG = 45 # degrees either side of forward
 TURN_180_TIME = math.pi / TURN_SPEED
 DOCK_DISTANCE = 0.3
 WAIT_TIME = 2.0
-CUBE_MIN_DETECTION_TIME = 0.5
+CUBE_MIN_DETECTION_TIME = 0.3
 DEBUG_MODE = True
-MAX_HEADING_ERR = 0.12
+MAX_HEADING_ERR = 1.0
+DONE_DISTANCE = 0.2
 
 RED_LOW1 = np.array([0, 120, 70])
 RED_HIGH1 = np.array([10, 255, 255])
@@ -197,6 +198,7 @@ class AutonomousSearch(Node):
 
         if self.nearest_front > (AVOID_DISTANCE / 2):
             msg.linear.x = FORWARD_SPEED
+            self.last_turn = "FORWARD"
         
             if not(self.nearest_left < SIDE_AVOID_DIST and self.nearest_right < SIDE_AVOID_DIST):
                     msg.angular.z = DRIVE_TURN_SPEED if self.nearest_left > self.nearest_right else -DRIVE_TURN_SPEED
@@ -231,7 +233,7 @@ class AutonomousSearch(Node):
 
     def returnToOrigin(self, msg):
 
-        if self.euclidean_distance_xy(0.0, 0.0, self.current_x, self.current_y) > 0.3:
+        if self.euclidean_distance_xy(0.0, 0.0, self.current_x, self.current_y) > DONE_DISTANCE:
             self.get_logger().info("Returning to origin")
             
             if self.nearest_front > AVOID_DISTANCE:
@@ -321,8 +323,8 @@ class AutonomousSearch(Node):
         dy = 0.0 - self.current_y
 
         target_angle = math.atan2(dy, dx)
-        heading_err = self.angleDiff(target_angle, self.current_yaw)
-        heading_err = math.pi - heading_err
+        heading_err = self.angleDiff(target_angle, (self.current_yaw + math.pi))
+        #heading_err = math.pi - heading_err
         #heading_err = self._angle_diff(target_angle, self.current_yaw)
 
         if abs(heading_err) > MAX_HEADING_ERR:
