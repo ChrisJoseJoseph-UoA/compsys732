@@ -65,7 +65,7 @@ class ObstacleAvoidance(Node):
         self.nearest_front = float('inf')
         self.nearest_left = float('inf')
         self.nearest_right = float('inf')
-        self.timer = self.create_timer(0.1, self.control_loop)
+            self.timer = self.create_timer(0.1, self.control_loop)
         self.get_logger().info('Avoidance controller started')
         self.cube_detected = False
         topic = f'{NAMESPACE}/oakd/rgb/image_raw/compressed'
@@ -87,7 +87,8 @@ class ObstacleAvoidance(Node):
         self.current_yaw = None
         self.log_msg = None
         self.detection_x = None
-        self.detection_y = None
+        self.detection_y = Noneself.run_start_time = None
+        self.run_end_time = None
         
 
     def getYaw(self, x, y, z, w):
@@ -219,6 +220,14 @@ class ObstacleAvoidance(Node):
             self.get_logger().warn(f"[Debug] | >> Target Angle: {target_angle}")
 
         return heading_err
+    def print_run_report(self):
+        report = """
+        [Report] | -------------------------    RUN REPORT    -------------------------
+        [Report] | 
+        [Report] | Total Run Time: 
+        
+        """
+        
 
     def control_loop(self):
         msg = Twist()
@@ -267,6 +276,7 @@ class ObstacleAvoidance(Node):
 
         #=======================        Phase Control       ==============================
         if self.phase == 0:
+            self.run_start_time = self.get_clock().now()
             self.checkpoint_x = self.current_x
             self.checkpoint_y = self.current_y
             self.checkpoint_yaw = self.current_yaw
@@ -344,6 +354,10 @@ class ObstacleAvoidance(Node):
                 self.phase = 4
                 self.phase_reading_count = 0
                 self.get_logger().warn(f"[PhaseChange] | ------------------------Phase {self.phase}------------------------")
+        else:
+            if not self.print_report:
+                self.print_run_report()
+                self.print_report = True
 
         if self.phase != 4:
             if msg.angular.z == 0:
@@ -362,8 +376,9 @@ class ObstacleAvoidance(Node):
                         self.get_logger().info(f"Phase[{self.phase}] | [TURN - LFT] | pos: ({self.current_x:.2f}, {self.current_y:.2f}) | checkpoint: ({self.checkpoint_x}, {self.checkpoint_y}) | {self.log_msg}")
                     else:
                         self.get_logger().info(f"Phase[{self.phase}] | [TURN - RGT] | pos: ({self.current_x:.2f}, {self.current_y:.2f}) | checkpoint: ({self.checkpoint_x}, {self.checkpoint_y}) | {self.log_msg}")
-
+    
             self.publisher.publish(msg)
+            
         
 def main(args=None):
     rclpy.init(args=args)
