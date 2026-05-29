@@ -88,7 +88,8 @@ class ObstacleAvoidance(Node):
         self.current_yaw = None
         self.log_msg = None
         self.detection_x = None
-        self.detection_y = Noneself.run_start_time = None
+        self.detection_y = None
+        self.run_start_time = None
         self.run_end_time = None
         self.total_run_time = None
         
