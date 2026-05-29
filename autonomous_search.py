@@ -182,6 +182,7 @@ class AutonomousSearch(Node):
                     self.elapsed += 0.1
 
                 else:
+                    self.elapsed = 0.0
                     msg = self.returnToOrigin(msg)
 
             case "DONE":
