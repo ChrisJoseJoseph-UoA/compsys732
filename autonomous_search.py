@@ -19,7 +19,7 @@ source ~/ros2_ws/install/setup.bash
 
 NAMESPACE = '/T8' # ← change to your robot namespace
 FORWARD_SPEED = 0.15 # m/s
-TURN_SPEED = 0.3 # rad/s
+TURN_SPEED = 0.35 # rad/s
 DRIVE_TURN_SPEED = 0.3
 AVOID_DISTANCE = 0.6 # metres
 SIDE_AVOID_DIST = 0.15
@@ -27,8 +27,9 @@ FRONT_ARC_DEG = 45 # degrees either side of forward
 TURN_180_TIME = math.pi / TURN_SPEED
 DOCK_DISTANCE = 0.3
 WAIT_TIME = 2.0
-CUBE_MIN_DETECTION_TIME = 0.3
+CUBE_MIN_DETECTION_TIME = 0.5
 DEBUG_MODE = True
+MAX_HEADING_ERR = 0.12
 
 RED_LOW1 = np.array([0, 120, 70])
 RED_HIGH1 = np.array([10, 255, 255])
@@ -70,9 +71,6 @@ class AutonomousSearch(Node):
         self.photoTaken = False
         self.cubeDetectTime = 0.0
         self.elapsed = 0.0
-        self.phase = 0
-        self.phase_reading_count = 0
-        self.heading_turn = False
         self.state = "SEARCH"
         self.returnTurn = False
 
@@ -181,6 +179,7 @@ class AutonomousSearch(Node):
             case "RETURN":
                 if not self.returnTurn:
                     msg, self.returnTurn = self.turnAngle(msg, 180)
+                    self.elapsed += 0.1
 
                 else:
                     msg = self.returnToOrigin(msg)
@@ -191,8 +190,8 @@ class AutonomousSearch(Node):
         self.publisher.publish(msg)
         self.get_logger().info(f"State: {self.state}")
         self.get_logger().info(f"Cube detected: {self.cube_detected}")
-        #self.get_logger().info(msg)
 
+#=========================================================
     def avoid(self, msg):
 
         if self.nearest_front > (AVOID_DISTANCE / 2):
@@ -231,7 +230,7 @@ class AutonomousSearch(Node):
 
     def returnToOrigin(self, msg):
 
-        if self.euclidean_distance_xy(0.0, 0.0, self.current_x, self.current_y) > 0.1:
+        if self.euclidean_distance_xy(0.0, 0.0, self.current_x, self.current_y) > 0.3:
             self.get_logger().info("Returning to origin")
             
             if self.nearest_front > AVOID_DISTANCE:
@@ -259,6 +258,8 @@ class AutonomousSearch(Node):
             msg.linear.x = 0.0
             msg.angular.z = turnSpeed
             turn_status = False
+            self.get_logger().info(f"Turning: {angle}, ")
+
         else:
             self.elapsed = 0.0
             turn_status = True
@@ -300,12 +301,13 @@ class AutonomousSearch(Node):
 
         target_angle = math.atan2(dy, dx)
         heading_err = self.angleDiff(target_angle, self.current_yaw)
-        #heading_err = self._angle_diff(target_angle, self.current_yaw)
 
-        if abs(heading_err) > 0.12:
+        if abs(heading_err) > MAX_HEADING_ERR:
         # Rotate to face origin
             #msg.linear.x = 0.0
             msg.angular.z = TURN_SPEED if heading_err > 0 else -TURN_SPEED
+            self.get_logger().info(f"Origin heading error too high, adjusting: {heading_err}")
+
         # else:
         # # Drive toward origin
         #     msg.linear.x = FORWARD_SPEED
@@ -322,10 +324,11 @@ class AutonomousSearch(Node):
         heading_err = math.pi - heading_err
         #heading_err = self._angle_diff(target_angle, self.current_yaw)
 
-        if abs(heading_err) > 0.12:
+        if abs(heading_err) > MAX_HEADING_ERR:
         # Rotate to face origin
             #msg.linear.x = 0.0
             msg.angular.z = TURN_SPEED if heading_err > 0 else -TURN_SPEED
+            self.get_logger().info(f"Heading away error too high, adjusting: {heading_err}")
         # else:
         # # Drive toward origin
         #     msg.linear.x = FORWARD_SPEED
