@@ -252,9 +252,11 @@ class ObstacleAvoidance(Node):
     def control_loop(self):
         msg = Twist()
 
+        #    navigate() -> Navigation + Obstacle Avoidance
         def navigate():
 
-            self.get_logger().warn("-----------in Navigation ():")
+            if self.DEBUG_MODE:
+                self.get_logger().warn("-----------in Navigation ():")
             
             if self.nearest_front > AVOID_DISTANCE:
                 msg.linear.x = FORWARD_SPEED
@@ -295,6 +297,7 @@ class ObstacleAvoidance(Node):
                         self.log_msg = "[Continuing motion]" 
 
         #=======================        Phase Control       ==============================
+        
         if self.phase == 0:
             self.run_start_time = self.get_clock().now()
             self.checkpoint_x = self.current_x
@@ -306,7 +309,9 @@ class ObstacleAvoidance(Node):
             self.get_logger().warn(f"[Logging] | Checkpoint Set: ({self.checkpoint_x},{self.checkpoint_y}. Orientation(rads): {self.checkpoint_yaw})")
             self.phase = 1
             self.get_logger().warn(f"[PhaseChange] | ------------------------Phase {self.phase}------------------------")
-
+            
+        #    ------------------------------------    Phase 1    ------------------------------------
+        
         if self.phase == 1:
             self.phase_reading_count += 1
             navigate()
@@ -314,6 +319,9 @@ class ObstacleAvoidance(Node):
                 self.phase = 2
                 self.phase_reading_count = 0
                 self.get_logger().warn(f"[PhaseChange] | ------------------------Phase {self.phase}------------------------")
+                
+        #    ------------------------------------    Phase 2    ------------------------------------
+        
         elif self.phase == 2:
             msg.linear.x = 0.0
             msg.angular.z = 0.0
@@ -343,7 +351,9 @@ class ObstacleAvoidance(Node):
                     self.phase = 3
                     self.turn_status = False
                     self.get_logger().warn(f"[PhaseChange] | ------------------------Phase {self.phase}------------------------")
-
+                    
+        #    ------------------------------------    Phase 3    ------------------------------------
+        
         elif self.phase == 3:
             self.phase_reading_count += 1
             if self.phase_reading_count == 1:
@@ -380,7 +390,9 @@ class ObstacleAvoidance(Node):
         else:
             if not self.print_report:
                 self.print_report =  self.print_run_report()
-
+                
+        #    ------------------------------------    Phase 4    ------------------------------------
+        
         if self.phase != 4:
             if msg.angular.z == 0:
                 if msg.linear.x == 0:
